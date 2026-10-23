@@ -1,0 +1,33 @@
+{
+  "name": "collabspace-ai-team",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CollabSpace AI Team - AI digital team member management and orchestration platform",
+  "packageManager": "pnpm@10.18.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "concurrently -k -n api,worker,web -c blue,magenta,green \"pnpm --filter @collabspace/api dev\" \"pnpm --filter @collabspace/worker dev\" \"pnpm --filter @collabspace/web dev\"",
+    "dev:api": "pnpm --filter @collabspace/api dev",
+    "dev:worker": "pnpm --filter @collabspace/worker dev",
+    "dev:web": "pnpm --filter @collabspace/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --no-bail test",
+    "test:unit": "pnpm --filter @collabspace/shared test && pnpm --filter @collabspace/web test",
+    "test:integration": "pnpm --filter @collabspace/core test",
+    "test:e2e": "playwright test",
+    "db:generate": "pnpm --filter @collabspace/core db:generate",
+    "db:migrate": "pnpm --filter @collabspace/core db:migrate",
+    "db:deploy": "pnpm --filter @collabspace/core db:deploy",
+    "db:seed": "pnpm --filter @collabspace/core db:seed",
+    "db:reset": "pnpm --filter @collabspace/core db:reset",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "setup": "pnpm install && pnpm infra:up && pnpm db:generate && pnpm db:migrate && pnpm db:seed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,1009 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- enums
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  AGENT_MANAGER
+  TASK_OPERATOR
+  APPROVER
+  VIEWER
+}
+
+enum ProjectRole {
+  VIEWER
+  EDITOR
+  MANAGER
+}
+
+enum AgentStatus {
+  ONLINE
+  IDLE
+  WORKING
+  PAUSED
+  OFFLINE
+  ARCHIVED
+}
+
+enum AgentCategory {
+  RESEARCHER
+  PROJECT_PLANNER
+  QA_REVIEWER
+  DOCUMENTATION
+  GENERAL_ASSISTANT
+  DATA_ANALYST
+  MEETING_ASSISTANT
+  PRODUCT_MANAGER
+  CODE_ASSISTANT
+  CUSTOMER_SUPPORT
+  SECURITY_REVIEWER
+  WORKFLOW_COORDINATOR
+}
+
+enum TaskStatus {
+  DRAFT
+  QUEUED
+  RUNNING
+  WAITING_APPROVAL
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMED_OUT
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ExecutionStatus {
+  RUNNING
+  WAITING_APPROVAL
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMED_OUT
+  ABANDONED
+}
+
+enum EventLevel {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+enum ToolCategory {
+  READ
+  WRITE
+  HIGH_RISK
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ToolInvocationStatus {
+  REQUESTED
+  AUTHORIZED
+  DENIED
+  AWAITING_APPROVAL
+  EXECUTED
+  FAILED
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+  EXPIRED
+  SUPERSEDED
+  EXECUTED
+}
+
+enum ApprovalDecisionType {
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum WorkflowExecutionStatus {
+  PENDING
+  RUNNING
+  WAITING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum NodeExecutionStatus {
+  PENDING
+  RUNNING
+  WAITING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+enum MessageRole {
+  USER
+  AGENT
+  SYSTEM
+}
+
+enum MessageKind {
+  TEXT
+  EXECUTION
+  APPROVAL
+  ERROR
+  TOOL
+  ARTIFACT
+}
+
+enum MessageStatus {
+  PENDING
+  STREAMING
+  COMPLETE
+  FAILED
+}
+
+enum ArtifactType {
+  MARKDOWN
+  CSV
+  JSON
+  PDF
+  TEXT
+  UPLOAD
+}
+
+enum ArtifactVisibility {
+  WORKSPACE
+  PROJECT
+  PRIVATE
+}
+
+enum KnowledgeSourceType {
+  DOCUMENT
+  URL
+  FOLDER
+  REPORT
+  TEXT
+}
+
+enum KnowledgeStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  REVOKED
+}
+
+enum UsageKind {
+  MODEL
+  TOOL
+  EMBEDDING
+}
+
+enum BudgetScope {
+  WORKSPACE
+  AGENT
+  PROJECT
+}
+
+enum BudgetPeriod {
+  DAILY
+  MONTHLY
+  TOTAL
+}
+
+enum NotificationType {
+  TASK_COMPLETED
+  TASK_FAILED
+  APPROVAL_REQUESTED
+  APPROVAL_DECIDED
+  BUDGET_WARNING
+  HUMAN_TASK
+  WORKFLOW_COMPLETED
+  SYSTEM
+}
+
+enum ActorType {
+  USER
+  AGENT
+  SYSTEM
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  ERROR
+  DISCONNECTED
+}
+
+// ---------------------------------------------------------------- identity
+
+model User {
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  name                String
+  passwordHash        String
+  avatarUrl           String?
+  themePreference     String    @default("system")
+  emailVerifiedAt     DateTime?
+  verificationToken   String?   @unique
+  resetTokenHash      String?   @unique
+  resetTokenExpiresAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  sessions          Session[]
+  memberships       WorkspaceMember[]
+  projectMembers    ProjectMember[]
+  createdAgents     Agent[]            @relation("AgentCreatedBy")
+  agentVersions     AgentVersion[]
+  createdTasks      AgentTask[]        @relation("TaskCreatedBy")
+  approvalDecisions ApprovalDecision[]
+  conversations     Conversation[]
+  artifacts         Artifact[]
+  knowledgeSources  KnowledgeSource[]
+  workflows         Workflow[]
+  workflowVersions  WorkflowVersion[]
+  workflowRuns      WorkflowExecution[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  integrations      IntegrationConnection[]
+  toolGrants        AgentToolPermission[]
+  invites           WorkspaceInvite[]
+  humanTasks        WorkflowNodeExecution[] @relation("HumanTaskAssignee")
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Workspace {
+  id                      String   @id @default(cuid())
+  name                    String
+  slug                    String   @unique
+  maxConcurrentTasks      Int      @default(5)
+  defaultAgentConcurrency Int      @default(2)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  members          WorkspaceMember[]
+  invites          WorkspaceInvite[]
+  projects         Project[]
+  agents           Agent[]
+  tasks            AgentTask[]
+  approvals        ApprovalRequest[]
+  workflows        Workflow[]
+  workflowRuns     WorkflowExecution[]
+  conversations    Conversation[]
+  artifacts        Artifact[]
+  knowledgeSources KnowledgeSource[]
+  usageRecords     UsageRecord[]
+  budgetPolicies   BudgetPolicy[]
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  integrations     IntegrationConnection[]
+  projectComments  ProjectComment[]
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(VIEWER)
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model WorkspaceInvite {
+  id          String        @id @default(cuid())
+  workspaceId String
+  email       String
+  role        WorkspaceRole
+  invitedById String
+  acceptedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy   User          @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, email])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String   @default("")
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  members          ProjectMember[]
+  agents           Agent[]
+  tasks            AgentTask[]
+  conversations    Conversation[]
+  artifacts        Artifact[]
+  knowledgeSources KnowledgeSource[]
+  workflows        Workflow[]
+  usageRecords     UsageRecord[]
+  comments         ProjectComment[]
+
+  @@index([workspaceId])
+}
+
+model ProjectMember {
+  id        String      @id @default(cuid())
+  projectId String
+  userId    String
+  role      ProjectRole @default(EDITOR)
+  createdAt DateTime    @default(now())
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model ProjectComment {
+  id          String    @id @default(cuid())
+  workspaceId String
+  projectId   String
+  body        String
+  authorType  ActorType
+  authorId    String?
+  agentId     String?
+  taskId      String?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+}
+
+// ------------------------------------------------------------------ agents
+
+model Agent {
+  id               String        @id @default(cuid())
+  workspaceId      String
+  projectId        String?
+  name             String
+  avatar           String        @default("general")
+  color            String        @default("#6366f1")
+  description      String        @default("")
+  category         AgentCategory
+  status           AgentStatus   @default(ONLINE)
+  currentVersionId String?       @unique
+  lastActivityAt   DateTime?
+  lastError        String?
+  archivedAt       DateTime?
+  createdById      String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project         Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy       User?                @relation("AgentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  currentVersion  AgentVersion?        @relation("AgentCurrentVersion", fields: [currentVersionId], references: [id])
+  versions        AgentVersion[]       @relation("AgentVersions")
+  toolPermissions AgentToolPermission[]
+  knowledgeLinks  AgentKnowledgeSource[]
+  tasks           AgentTask[]
+  conversations   Conversation[]
+  artifacts       Artifact[]
+  approvals       ApprovalRequest[]
+  usageRecords    UsageRecord[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, category])
+  @@index([projectId])
+}
+
+model AgentVersion {
+  id            String   @id @default(cuid())
+  agentId       String
+  version       Int
+  instructions  Json
+  modelConfig   Json
+  tools         String[]
+  knowledge     Json
+  changeSummary String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  agent        Agent       @relation("AgentVersions", fields: [agentId], references: [id], onDelete: Cascade)
+  currentOf    Agent?      @relation("AgentCurrentVersion")
+  createdBy    User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  tasks        AgentTask[]
+
+  @@unique([agentId, version])
+}
+
+model AgentToolPermission {
+  id          String   @id @default(cuid())
+  agentId     String
+  toolId      String
+  grantedById String?
+  createdAt   DateTime @default(now())
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  tool        ToolDefinition @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  grantedBy   User?    @relation(fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([agentId, toolId])
+}
+
+model AgentKnowledgeSource {
+  id                String          @id @default(cuid())
+  agentId           String
+  knowledgeSourceId String
+  createdAt         DateTime        @default(now())
+  agent             Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  knowledgeSource   KnowledgeSource @relation(fields: [knowledgeSourceId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, knowledgeSourceId])
+}
+
+// ------------------------------------------------------------------- tools
+
+model ToolDefinition {
+  id               String       @id
+  name             String
+  description      String
+  category         ToolCategory
+  risk             RiskLevel
+  requiresApproval Boolean
+  requiresIntegration String?
+  enabled          Boolean      @default(true)
+  timeoutMs        Int
+  idempotent       Boolean
+  inputSchema      Json
+  outputSchema     Json
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  permissions AgentToolPermission[]
+  invocations ToolInvocation[]
+}
+
+model ToolInvocation {
+  id             String               @id @default(cuid())
+  taskId         String
+  executionId    String?
+  toolId         String
+  status         ToolInvocationStatus @default(REQUESTED)
+  input          Json
+  output         Json?
+  errorMessage   String?
+  approvalId     String?              @unique
+  idempotencyKey String?              @unique
+  durationMs     Int?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime             @default(now())
+
+  task      AgentTask       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  execution AgentExecution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+  tool      ToolDefinition  @relation(fields: [toolId], references: [id])
+  approval  ApprovalRequest? @relation(fields: [approvalId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
+}
+
+// ------------------------------------------------------------------- tasks
+
+model AgentTask {
+  id                      String       @id @default(cuid())
+  workspaceId             String
+  projectId               String?
+  agentId                 String
+  agentVersionId          String
+  title                   String
+  description             String       @default("")
+  status                  TaskStatus   @default(QUEUED)
+  priority                TaskPriority @default(NORMAL)
+  progress                Int          @default(0)
+  progressMessage         String?
+  deadline                DateTime?
+  scheduledFor            DateTime?
+  expectedDeliverable     String       @default("")
+  allowedTools            Json?
+  inputArtifactIds        String[]     @default([])
+  budgetUsd               Float?
+  requireApprovalForWrites Boolean     @default(false)
+  attempt                 Int          @default(0)
+  maxAttempts             Int          @default(3)
+  timeoutMs               Int          @default(600000)
+  failureClass            String?
+  errorMessage            String?
+  resultSummary           String?
+  resultContent           String?
+  idempotencyKey          String?
+  jobId                   String?
+  workerId                String?
+  heartbeatAt             DateTime?
+  cancelRequestedAt       DateTime?
+  startedAt               DateTime?
+  completedAt             DateTime?
+  durationMs              Int?
+  createdById             String?
+  conversationId          String?
+  workflowExecutionId     String?
+  workflowNodeExecutionId String?      @unique
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  workspace     Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project       Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  agent         Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agentVersion  AgentVersion    @relation(fields: [agentVersionId], references: [id])
+  createdBy     User?           @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  conversation  Conversation?   @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  workflowRun   WorkflowExecution? @relation(fields: [workflowExecutionId], references: [id], onDelete: SetNull)
+  nodeExecution WorkflowNodeExecution? @relation(fields: [workflowNodeExecutionId], references: [id], onDelete: SetNull)
+  executions    AgentExecution[]
+  events        ExecutionEvent[]
+  invocations   ToolInvocation[]
+  approvals     ApprovalRequest[]
+  artifacts     Artifact[]
+  usageRecords  UsageRecord[]
+  messages      ConversationMessage[]
+
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, status, createdAt])
+  @@index([agentId, status])
+  @@index([projectId])
+  @@index([status, heartbeatAt])
+}
+
+model AgentExecution {
+  id           String          @id @default(cuid())
+  taskId       String
+  attempt      Int
+  status       ExecutionStatus @default(RUNNING)
+  workerId     String?
+  state        Json?
+  errorMessage String?
+  failureClass String?
+  startedAt    DateTime        @default(now())
+  heartbeatAt  DateTime        @default(now())
+  completedAt  DateTime?
+
+  task        AgentTask        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  events      ExecutionEvent[]
+  invocations ToolInvocation[]
+  usage       UsageRecord[]
+
+  @@unique([taskId, attempt])
+}
+
+model ExecutionEvent {
+  id          String     @id @default(cuid())
+  taskId      String
+  executionId String?
+  sequence    Int
+  type        String
+  level       EventLevel @default(INFO)
+  message     String
+  metadata    Json?
+  diagnostics Json?
+  durationMs  Int?
+  createdAt   DateTime   @default(now())
+
+  task      AgentTask       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  execution AgentExecution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@unique([taskId, sequence])
+  @@index([taskId, createdAt])
+}
+
+// --------------------------------------------------------------- approvals
+
+model ApprovalRequest {
+  id                      String         @id @default(cuid())
+  workspaceId             String
+  taskId                  String?
+  workflowExecutionId     String?
+  workflowNodeExecutionId String?        @unique
+  agentId                 String?
+  toolId                  String?
+  actionTitle             String
+  actionDescription       String
+  targetResource          String?
+  risk                    RiskLevel
+  proposal                Json
+  proposalVersion         Int            @default(1)
+  proposalHash            String
+  evidence                Json?
+  diff                    Json?
+  status                  ApprovalStatus @default(PENDING)
+  requestedByType         ActorType      @default(AGENT)
+  expiresAt               DateTime?
+  executedAt              DateTime?
+  executionResult         Json?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  task        AgentTask?         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  workflowRun WorkflowExecution? @relation(fields: [workflowExecutionId], references: [id], onDelete: Cascade)
+  nodeRun     WorkflowNodeExecution? @relation(fields: [workflowNodeExecutionId], references: [id], onDelete: SetNull)
+  agent       Agent?             @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  decisions   ApprovalDecision[]
+  invocation  ToolInvocation?
+
+  @@index([workspaceId, status, createdAt])
+  @@index([taskId])
+}
+
+model ApprovalDecision {
+  id              String               @id @default(cuid())
+  approvalId      String
+  decision        ApprovalDecisionType
+  comment         String?
+  decidedById     String
+  proposalVersion Int
+  createdAt       DateTime             @default(now())
+
+  approval  ApprovalRequest @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  decidedBy User            @relation(fields: [decidedById], references: [id])
+
+  @@index([approvalId])
+}
+
+// --------------------------------------------------------------- workflows
+
+model Workflow {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  projectId        String?
+  name             String
+  description      String   @default("")
+  currentVersionId String?  @unique
+  isTemplate       Boolean  @default(false)
+  createdById      String?
+  archivedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace      Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project        Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy      User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  currentVersion WorkflowVersion?  @relation("WorkflowCurrentVersion", fields: [currentVersionId], references: [id])
+  versions       WorkflowVersion[] @relation("WorkflowVersions")
+  executions     WorkflowExecution[]
+
+  @@index([workspaceId])
+}
+
+model WorkflowVersion {
+  id            String   @id @default(cuid())
+  workflowId    String
+  version       Int
+  graph         Json
+  changeSummary String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  workflow   Workflow            @relation("WorkflowVersions", fields: [workflowId], references: [id], onDelete: Cascade)
+  currentOf  Workflow?           @relation("WorkflowCurrentVersion")
+  createdBy  User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  executions WorkflowExecution[]
+
+  @@unique([workflowId, version])
+}
+
+model WorkflowExecution {
+  id                String                  @id @default(cuid())
+  workspaceId       String
+  workflowId        String
+  workflowVersionId String
+  status            WorkflowExecutionStatus @default(PENDING)
+  dryRun            Boolean                 @default(false)
+  input             Json
+  output            Json?
+  errorMessage      String?
+  startedById       String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  workspace Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workflow  Workflow                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  version   WorkflowVersion         @relation(fields: [workflowVersionId], references: [id])
+  startedBy User?                   @relation(fields: [startedById], references: [id], onDelete: SetNull)
+  nodes     WorkflowNodeExecution[]
+  tasks     AgentTask[]
+  approvals ApprovalRequest[]
+
+  @@index([workflowId, createdAt])
+  @@index([workspaceId, status])
+}
+
+model WorkflowNodeExecution {
+  id           String              @id @default(cuid())
+  executionId  String
+  nodeId       String
+  nodeType     String
+  label        String?
+  status       NodeExecutionStatus @default(PENDING)
+  attempt      Int                 @default(0)
+  input        Json?
+  output       Json?
+  errorMessage String?
+  logs         Json                @default("[]")
+  assigneeId   String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  execution WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  assignee  User?             @relation("HumanTaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  task      AgentTask?
+  approval  ApprovalRequest?
+
+  @@unique([executionId, nodeId])
+}
+
+// ------------------------------------------------------------ conversation
+
+model Conversation {
+  id          String   @id @default(cuid())
+  workspaceId String
+  agentId     String
+  projectId   String?
+  userId      String
+  title       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agent     Agent                 @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  project   Project?              @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ConversationMessage[]
+  tasks     AgentTask[]
+
+  @@index([workspaceId, agentId, userId])
+}
+
+model ConversationMessage {
+  id             String        @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  kind           MessageKind   @default(TEXT)
+  content        String
+  metadata       Json?
+  taskId         String?
+  status         MessageStatus @default(COMPLETE)
+  inputTokens    Int?
+  outputTokens   Int?
+  createdAt      DateTime      @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  task         AgentTask?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+}
+
+// ---------------------------------------------------------------- artifacts
+
+model Artifact {
+  id          String             @id @default(cuid())
+  workspaceId String
+  projectId   String?
+  taskId      String?
+  agentId     String?
+  name        String
+  type        ArtifactType
+  mimeType    String
+  size        Int
+  storageKey  String
+  contentHash String?
+  version     Int                @default(1)
+  sources     Json               @default("[]")
+  visibility  ArtifactVisibility @default(WORKSPACE)
+  createdById String?
+  deletedAt   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  task      AgentTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  agent     Agent?     @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  createdBy User?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([taskId])
+}
+
+// ---------------------------------------------------------------- knowledge
+
+model KnowledgeSource {
+  id            String              @id @default(cuid())
+  workspaceId   String
+  projectId     String?
+  type          KnowledgeSourceType
+  title         String
+  url           String?
+  storageKey    String?
+  mimeType      String?
+  size          Int?
+  contentHash   String?
+  status        KnowledgeStatus     @default(PENDING)
+  statusMessage String?
+  version       Int                 @default(1)
+  chunkCount    Int                 @default(0)
+  createdById   String?
+  indexedAt     DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  workspace  Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project    Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy  User?                  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  chunks     KnowledgeChunk[]
+  agentLinks AgentKnowledgeSource[]
+
+  @@index([workspaceId, status])
+  @@index([projectId])
+}
+
+model KnowledgeChunk {
+  id        String   @id @default(cuid())
+  sourceId  String
+  index     Int
+  content   String
+  tokens    Int
+  embedding Json?
+  createdAt DateTime @default(now())
+
+  source KnowledgeSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, index])
+}
+
+// -------------------------------------------------------------------- usage
+
+model UsageRecord {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  projectId        String?
+  agentId          String?
+  taskId           String?
+  executionId      String?
+  conversationId   String?
+  kind             UsageKind
+  provider         String
+  model            String
+  toolId           String?
+  inputTokens      Int?
+  outputTokens     Int?
+  estimatedCostUsd Float?
+  usageAvailable   Boolean   @default(true)
+  durationMs       Int
+  success          Boolean   @default(true)
+  isRetry          Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  agent     Agent?          @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  task      AgentTask?      @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  execution AgentExecution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([agentId, createdAt])
+  @@index([taskId])
+}
+
+model BudgetPolicy {
+  id           String       @id @default(cuid())
+  workspaceId  String
+  scope        BudgetScope
+  scopeId      String?
+  period       BudgetPeriod
+  hardLimitUsd Float?
+  warningRatio Float        @default(0.8)
+  maxTokens    Int?
+  enabled      Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, scope, scopeId, period])
+}
+
+// ------------------------------------------------------------ notifications
+
+model Notification {
+  id          String           @id @default(cuid())
+  workspaceId String
+  userId      String
+  type        NotificationType
+  title       String
+  body        String
+  link        String?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model AuditLog {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  actorId      String?
+  actorType    ActorType
+  action       String
+  resourceType String
+  resourceId   String?
+  metadata     Json?
+  ip           String?
+  requestId    String?
+  createdAt    DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, action])
+}
+
+model IntegrationConnection {
+  id              String            @id @default(cuid())
+  workspaceId     String
+  provider        String
+  name            String
+  encryptedSecret String
+  config          Json              @default("{}")
+  status          IntegrationStatus @default(CONNECTED)
+  lastCheckedAt   DateTime?
+  lastError       String?
+  createdById     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, provider, name])
+}

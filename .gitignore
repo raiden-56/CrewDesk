@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+.env
+.env.*
+!.env.example
+*.log
+coverage
+playwright-report
+test-results
+.storage
+apps/web/dist
+packages/core/src/generated
+e2e/.auth
