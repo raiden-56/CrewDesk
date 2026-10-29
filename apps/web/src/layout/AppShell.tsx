@@ -8,6 +8,8 @@ import { CommandSearch } from './CommandSearch';
 import { AgentWizard } from '@/pages/agents/wizard/AgentWizard';
 import { useUiStore } from '@/store/ui';
 import { useRealtime } from '@/lib/realtime';
+import { GUEST_MODE_AVAILABLE, isGuestActive } from '@/guest/session';
+import { GuestModeMobileBanner } from '@/guest/GuestModeChip';
 
 export function AppShell({ children }: { children: ReactNode }) {
   useRealtime();
@@ -60,6 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <AgentWizard />
       <CommandSearch />
       <Toast />
+      {GUEST_MODE_AVAILABLE && isGuestActive() && <GuestModeMobileBanner />}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/store/auth';
+import { GUEST_MODE_AVAILABLE, isGuestActive } from '@/guest/session';
 
 export class ApiClientError extends Error {
   constructor(
@@ -26,7 +27,27 @@ function qs(query?: Query): string {
   return s ? `?${s}` : '';
 }
 
+/** Guest mode: answer the request in the browser from sample data (no network). */
+async function guestRequest<T>(method: string, path: string, body: unknown, opts: { query?: Query; raw?: boolean; form?: FormData }): Promise<T> {
+  const { handleGuestRequest } = await import('@/guest/mockApi');
+  await new Promise((resolve) => setTimeout(resolve, 120 + Math.random() * 180));
+  const res = await handleGuestRequest(method, `${path}${qs(opts.query)}`, opts.form ? undefined : body, opts.form);
+  if (opts.raw) {
+    const file = res.raw;
+    const response = file
+      ? new Response(file.body, { status: 200, headers: { 'Content-Type': file.contentType, 'Content-Disposition': `attachment; filename="${encodeURIComponent(file.filename)}"` } })
+      : new Response(JSON.stringify(res.data), { status: res.status, headers: { 'Content-Type': 'application/json' } });
+    return response as unknown as T;
+  }
+  if (res.status >= 400) {
+    const err = (res.data as { error?: { code?: string; message?: string; details?: unknown; requestId?: string } } | null)?.error;
+    throw new ApiClientError(res.status, err?.code ?? 'HTTP_ERROR', err?.message ?? `Request failed (${res.status})`, err?.details, err?.requestId);
+  }
+  return res.data as T;
+}
+
 async function request<T>(method: string, path: string, body?: unknown, opts: { query?: Query; raw?: boolean; form?: FormData } = {}): Promise<T> {
+  if (GUEST_MODE_AVAILABLE && isGuestActive()) return guestRequest<T>(method, path, body, opts);
   const headers: Record<string, string> = { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
   const workspaceId = useAuthStore.getState().workspaceId;
   if (workspaceId) headers['X-Workspace-Id'] = workspaceId;

@@ -9,7 +9,9 @@ import {
   type WorkspaceDto,
 } from "@collabspace/shared";
 import type { z } from "zod";
-import { api, errorMessage } from "@/lib/api";
+import { Compass } from "lucide-react";
+import { ApiClientError, api, errorMessage } from "@/lib/api";
+import { GUEST_MODE_AVAILABLE, startGuestSession } from "@/guest/session";
 import { useAuthStore } from "@/store/auth";
 import { AuthLayout } from "./AuthLayout";
 
@@ -37,8 +39,21 @@ export function LoginPage() {
         replace: true,
       });
     } catch (err) {
-      setError(errorMessage(err));
+      // Static demo hosting has no API: point people at guest mode instead of a raw HTTP error.
+      const unreachable =
+        !(err instanceof ApiClientError) || err.code === "HTTP_ERROR";
+      setError(
+        GUEST_MODE_AVAILABLE && unreachable
+          ? "The server is not reachable from this demo. Continue as guest to explore with sample data."
+          : errorMessage(err),
+      );
     }
+  };
+
+  const continueAsGuest = () => {
+    const { user, workspaces } = startGuestSession();
+    setSession(user, workspaces);
+    navigate("/", { replace: true });
   };
 
   return (
@@ -88,6 +103,28 @@ export function LoginPage() {
         >
           Sign in
         </Button>
+        {GUEST_MODE_AVAILABLE && (
+          <>
+            <div className="flex items-center gap-2 text-[11.5px] text-text-3">
+              <span className="h-px flex-1 bg-border" />
+              or
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <Button
+              type="button"
+              variant="outlined"
+              size="large"
+              startIcon={<Compass size={17} />}
+              onClick={continueAsGuest}
+              data-testid="login-guest"
+            >
+              Continue as guest
+            </Button>
+            <p className="text-[12px] text-text-3 text-center -mt-1">
+              Explore a sample workspace. No account or server needed.
+            </p>
+          </>
+        )}
         <Link
           to="/forgot-password"
           className="text-[12.5px] text-text-3 text-center hover:text-text"

@@ -8,6 +8,8 @@ import { useApprovals, useProjects } from '@/lib/queries';
 import { api } from '@/lib/api';
 import { initials } from '@/lib/format';
 import { ROLE_LABELS } from '@collabspace/shared';
+import { GUEST_MODE_AVAILABLE, isGuestActive } from '@/guest/session';
+import { useLeaveGuestMode } from '@/guest/GuestModeChip';
 
 const NAV = [
   { to: '/', label: 'Home', icon: Home, end: true },
@@ -57,8 +59,10 @@ export function Sidebar({ collapsed, onNavigate }: { collapsed: boolean; onNavig
   const approvals = useApprovals({ status: 'PENDING', pageSize: 1 });
   const projects = useProjects();
   const pending = approvals.data?.pending ?? 0;
+  const leaveGuestMode = useLeaveGuestMode();
 
   const logout = async () => {
+    if (GUEST_MODE_AVAILABLE && isGuestActive()) return leaveGuestMode();
     await api.post('/auth/logout').catch(() => undefined);
     setAnonymous();
     navigate('/login');

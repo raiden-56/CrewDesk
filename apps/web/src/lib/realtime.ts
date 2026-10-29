@@ -4,6 +4,8 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { RealtimeEvent } from '@collabspace/shared';
 import { useAuthStore } from '@/store/auth';
 import { useUiStore } from '@/store/ui';
+import { GUEST_MODE_AVAILABLE, isGuestActive } from '@/guest/session';
+import { setGuestRealtimeDispatcher } from '@/guest/events';
 
 type Listener = (event: RealtimeEvent) => void;
 const listeners = new Set<Listener>();
@@ -70,19 +72,26 @@ export function useRealtime() {
   const notify = useUiStore((s) => s.notify);
 
   useEffect(() => {
+    const handle = (event: RealtimeEvent) => {
+      invalidateFor(event, qc);
+      for (const l of listeners) l(event);
+      if (event.type === 'notification') notify(event.notification.title, event.notification.type === 'TASK_FAILED' ? 'error' : event.notification.type === 'APPROVAL_REQUESTED' ? 'warning' : 'success');
+    };
     if (status !== 'authenticated') {
       socket?.disconnect();
       socket = null;
       joinedWorkspace = null;
+      if (GUEST_MODE_AVAILABLE) setGuestRealtimeDispatcher(null);
+      return;
+    }
+    // Guest mode has no server: the mock API emits events locally instead of a socket.
+    if (GUEST_MODE_AVAILABLE && isGuestActive()) {
+      setGuestRealtimeDispatcher(handle);
       return;
     }
     if (!socket) {
       socket = io({ path: '/realtime', withCredentials: true, transports: ['websocket', 'polling'] });
-      socket.on('event', (event: RealtimeEvent) => {
-        invalidateFor(event, qc);
-        for (const l of listeners) l(event);
-        if (event.type === 'notification') notify(event.notification.title, event.notification.type === 'TASK_FAILED' ? 'error' : event.notification.type === 'APPROVAL_REQUESTED' ? 'warning' : 'success');
-      });
+      socket.on('event', handle);
       socket.on('connect', () => {
         if (joinedWorkspace) socket?.emit('workspace:join', joinedWorkspace);
       });

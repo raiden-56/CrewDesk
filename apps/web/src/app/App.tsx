@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { useAuthStore } from '@/store/auth';
 import { fetchMe } from '@/lib/queries';
 import { ApiClientError } from '@/lib/api';
+import { GUEST_MODE_AVAILABLE } from '@/guest/session';
 import { ErrorState } from '@/components/common/States';
 import { AppShell } from '@/layout/AppShell';
 import { ShimmerPage } from '@/components/shimmer';
@@ -54,6 +55,8 @@ export function App() {
       })
       .catch((err) => {
         if (err instanceof ApiClientError && err.status === 401) setAnonymous();
+        // Guest-capable builds (static hosting without an API): fall back to the login page, which offers guest mode.
+        else if (GUEST_MODE_AVAILABLE) setAnonymous();
         else setBootError(err);
       });
   }, [setSession, setAnonymous, attempt]);

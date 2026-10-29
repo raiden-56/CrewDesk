@@ -8,6 +8,8 @@ import { useHealth, useNotifications } from '@/lib/queries';
 import { api } from '@/lib/api';
 import { timeAgo, initials } from '@/lib/format';
 import { useQueryClient } from '@tanstack/react-query';
+import { GUEST_MODE_AVAILABLE, isGuestActive } from '@/guest/session';
+import { GuestModeChip } from '@/guest/GuestModeChip';
 
 const TITLES: Array<{ match: RegExp; title: string; subtitle: string }> = [
   { match: /^\/$/, title: 'AI Team Overview', subtitle: 'Live status of your digital team members and their work' },
@@ -71,6 +73,7 @@ export function Header() {
         <div className="text-[14px] font-semibold leading-tight truncate">{page.title}</div>
         <div className="text-[11.5px] text-text-3 truncate hidden sm:block">{page.subtitle}</div>
       </div>
+      {GUEST_MODE_AVAILABLE && isGuestActive() && <GuestModeChip />}
       {health.data?.aiProvider.isMock && (
         <Tooltip title="The server is running the deterministic mock AI provider. Outputs are placeholders. Configure AI_PROVIDER for real results.">
           <span className="hidden sm:inline-flex items-center gap-1 rounded-md bg-warning-soft text-warning px-2 py-1 text-[11px] font-semibold">
