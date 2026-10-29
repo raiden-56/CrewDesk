@@ -7,6 +7,8 @@ import tailwindcss from '@tailwindcss/vite';
 const API = process.env.VITE_API_PROXY ?? 'http://localhost:4120';
 
 export default defineConfig({
+  // GitHub Pages serves the app from /<repo>/; the deploy workflow sets BASE_PATH.
+  base: process.env.BASE_PATH ?? '/',
   plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
